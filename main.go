@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 )
@@ -19,6 +21,7 @@ type TaskTimer struct {
 	taskList        map[string]time.Duration
 	taskListMutex   sync.Mutex
 	timeLabel       *widget.Label
+	richTimeLabel   *canvas.Text
 	pauseResumeBtn  *widget.Button
 	taskSelector    *widget.Select
 	statsUpdateFunc func()
@@ -59,7 +62,6 @@ func main() {
 
 	// Create sidebar with navigation buttons
 	sidebarContainer := container.NewVBox(
-		widget.NewCard("Navigation", "", nil),
 		widget.NewButton("⏱ Timer", func() {
 			timer.currentView = "timer"
 			updateContentView(timer, timerContainer, dailyStatsContainer, addTaskContainer)
@@ -77,7 +79,6 @@ func main() {
 	// Create main layout with sidebar and content
 	mainLayout := container.NewHBox(
 		container.NewVBox(
-			widget.NewLabel("Menu"),
 			widget.NewSeparator(),
 			sidebarContainer,
 		),
@@ -117,6 +118,23 @@ func createTimerContainer(timer *TaskTimer) *fyne.Container {
 	// Elapsed time display (HH:MM:SS format)
 	timer.timeLabel = widget.NewLabel("00:00:00")
 	timer.timeLabel.Alignment = fyne.TextAlignCenter
+
+	// Create a rich text for larger, styled time display
+	richTimeLabel := canvas.NewText("00:00:00", color.White)
+	richTimeLabel.TextSize = 56
+	richTimeLabel.Alignment = fyne.TextAlignCenter
+
+	// Create black rounded rectangle background
+	blackBg := canvas.NewRectangle(color.RGBA{0, 0, 0, 255})
+
+	// Create container with padding for the time label with background
+	timeLabelWithBg := container.NewStack(
+		blackBg,
+		container.NewCenter(richTimeLabel),
+	)
+
+	// Store reference to the rich text label for updates
+	timer.richTimeLabel = richTimeLabel
 
 	// Task selector dropdown
 	timer.taskSelector = widget.NewSelect([]string{"Select a task"}, func(value string) {
@@ -162,6 +180,8 @@ func createTimerContainer(timer *TaskTimer) *fyne.Container {
 
 		timer.elapsedTime = 0
 		timer.timeLabel.SetText("00:00:00")
+		timer.richTimeLabel.Text = "00:00:00"
+		timer.richTimeLabel.Refresh()
 	})
 
 	buttonContainer := container.NewHBox(
@@ -171,7 +191,7 @@ func createTimerContainer(timer *TaskTimer) *fyne.Container {
 
 	return container.NewVBox(
 		taskNameLabel,
-		timer.timeLabel,
+		timeLabelWithBg,
 		timer.taskSelector,
 		buttonContainer,
 	)
@@ -194,7 +214,8 @@ func startTimer(timer *TaskTimer) {
 				timeStr := fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 				
 				fyne.Do(func() {
-					timer.timeLabel.SetText(timeStr)
+					timer.richTimeLabel.Text = timeStr
+					timer.richTimeLabel.Refresh()
 				})
 			}
 		}
